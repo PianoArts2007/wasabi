@@ -29,6 +29,7 @@ enum_dispatch = "0.3.8"
 palette = "0.6.0"
 crossbeam-channel = "0.5.5"
 rand = "0.8.5"
+native-dialog = "0.6.3"
 
 [profile.dev]
 opt-level = 2

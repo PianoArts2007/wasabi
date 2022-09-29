@@ -28,7 +28,7 @@ impl GuiRenderScene {
         ui: &mut Ui,
         key_view: &KeyboardView,
         midi_file: &mut MIDIFileUnion,
-        view_range: f64,
+        view_range: &mut f64,
     ) -> RenderResultData {
         let size = ui.available_size();
         let size = [size.x as u32, size.y as u32];

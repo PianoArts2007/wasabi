@@ -50,9 +50,9 @@ impl NoteRenderer {
         key_view: &KeyboardView,
         final_image: Arc<dyn ImageViewAbstract + 'static>,
         mut midi_file: impl MIDIFile,
-        view_range: f64,
+        mut view_range: &mut f64,
     ) -> RenderResultData {
-        let note_views = midi_file.get_current_column_views(view_range);
+        let note_views = midi_file.get_current_column_views(&mut view_range);
 
         struct ColumnViewInfo<Iter: ExactSizeIterator<Item = DisplacedMIDINote> + Send> {
             offset: usize,
@@ -104,7 +104,7 @@ impl NoteRenderer {
 
         let mut cycle = 0;
 
-        let view_range = note_views.range().length() as f32;
+        let mut view_range = note_views.range().length() as f32;
 
         self.render_pass
             .draw(final_image, key_view, view_range, |buffer| {

@@ -107,7 +107,7 @@ pub trait MIDIFile: MIDIFileBase {
     where
         Self: 'a;
 
-    fn get_current_column_views<'a>(&'a mut self, range: f64) -> Self::ColumnsViews<'a>;
+    fn get_current_column_views<'a>(&'a mut self, range: &mut f64) -> Self::ColumnsViews<'a>;
 }
 
 #[enum_dispatch]

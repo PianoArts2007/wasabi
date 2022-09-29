@@ -214,7 +214,7 @@ impl NoteRenderPass {
         &mut self,
         final_image: Arc<dyn ImageViewAbstract + 'static>,
         key_view: &KeyboardView,
-        view_range: f32,
+        mut view_range: f32,
         mut fill_buffer: impl FnMut(&Arc<CpuAccessibleBuffer<[NoteVertex]>>) -> NotePassStatus,
     ) {
         let img_dims = final_image.image().dimensions().width_height();

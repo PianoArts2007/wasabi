@@ -7,6 +7,8 @@ use xsynth_core::{
 };
 use xsynth_realtime::{config::XSynthRealtimeConfig, RealtimeEventSender, RealtimeSynth};
 
+use native_dialog::{FileDialog};
+
 pub struct SimpleTemporaryPlayer {
     //kdmapi: KDMAPIStream,
     sender: RealtimeEventSender,
@@ -25,9 +27,22 @@ impl SimpleTemporaryPlayer {
 
         let params = synth.stream_params();
 
+        let path = FileDialog::new()
+        .set_location("~/")
+        .add_filter("SFZ File", &["sfz"])
+        .show_open_single_file()
+        .unwrap();
+        
+        let path = match path {
+            Some(path) => path,
+            None => {
+                panic!("File Not Found or Cancelled");
+            },
+        };
+
         let soundfont: Arc<dyn SoundfontBase> = Arc::new(
             SampleSoundfont::new(
-                "/home/jim/Black MIDIs/SoundFonts/MBMS Soundfonts/CFaz Keys IV Concert Grand Piano/.PianoSamples/cfaz.sfz",
+                path.into_os_string().into_string().unwrap(),
                 params.clone(),
             )
             .unwrap(),

@@ -19,6 +19,8 @@ use self::{keyboard::GuiKeyboard, scene::GuiRenderScene};
 
 use super::{GuiRenderer, GuiState};
 
+use native_dialog::{FileDialog};
+
 struct FPS(VecDeque<Instant>);
 
 const FPS_WINDOW: f64 = 0.5;
@@ -62,9 +64,21 @@ pub struct GuiWasabiWindow {
 
 impl GuiWasabiWindow {
     pub fn new(renderer: &mut GuiRenderer) -> GuiWasabiWindow {
-        let args: Vec<String> = env::args().collect();
+        let path = FileDialog::new()
+        .set_location("~/")
+        .add_filter("MIDI File", &["mid","MID"])
+        .show_open_single_file()
+        .unwrap();
+        
+        let path = match path {
+            Some(path) => path,
+            None => {
+                panic!("File Not Found or Cancelled");
+            },
+        };
+
         let mut midi_file = MIDIFileUnion::InRam(InRamMIDIFile::load_from_file(
-            &args[1],
+            &path.into_os_string().into_string().unwrap(),
             SimpleTemporaryPlayer::new(),
         ));
 
@@ -82,14 +96,13 @@ impl GuiWasabiWindow {
     /// Defines the layout of our UI
     pub fn layout(&mut self, state: &mut GuiState) {
         let ctx = state.gui.context();
+        let mut note_speed = 0.50;
 
         let window_size = vec![ctx.available_rect().width(), ctx.available_rect().height()];
 
         self.fps.update();
 
         ctx.set_visuals(Visuals::dark());
-
-        let note_speed = 0.25;
 
         // Render the top panel
         let panel_height = 40.0;
@@ -132,14 +145,17 @@ impl GuiWasabiWindow {
                     if ui.button("Settings (N/A)").clicked() {
                         // TODO
                     }
+
+                    let slider2 = egui::Slider::new(&mut note_speed, 0.01..=4.0).text("Note speed");
+                    ui.add(slider2);
+                    println!("{}",note_speed);
                 });
 
                 if let Some(length) = self.midi_file.midi_length() {
                     let time = self.midi_file.timer().get_time().as_secs_f64();
                     let mut progress = time / length;
                     let progress_prev = progress.clone();
-                    let slider = egui::Slider::new(&mut progress, 0.0..=1.0)
-                        .show_value(false);
+                    let slider = egui::Slider::new(&mut progress, 0.0..=1.0).show_value(false);
                     ui.spacing_mut().slider_width = window_size[0] - 15.0;
                     ui.add(slider);
                     if progress_prev != progress {
@@ -173,8 +189,7 @@ impl GuiWasabiWindow {
             .frame(no_frame)
             .show(&ctx, |mut ui| {
                 let result =
-                    self.render_scene
-                        .draw(state, &mut ui, &key_view, &mut self.midi_file, note_speed.clone());
+                    self.render_scene.draw(state, &mut ui, &key_view, &mut self.midi_file, &mut note_speed);
                 render_result_data = Some(result);
             });
 
@@ -205,7 +220,7 @@ impl GuiWasabiWindow {
             .scroll2([false, false])
             .enabled(true)
             .frame(stats_frame)
-            .fixed_pos(egui::Pos2::new(10.0, panel_height + 30.0))
+            .fixed_pos(egui::Pos2::new(10.0, panel_height + 45.0))
             .show(&ctx, |ui| {
                 if let Some(length) = self.midi_file.midi_length() {
                     let time = self.midi_file.timer().get_time().as_secs();

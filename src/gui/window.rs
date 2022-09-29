@@ -60,6 +60,7 @@ pub struct GuiWasabiWindow {
     keyboard: GuiKeyboard,
     midi_file: MIDIFileUnion,
     fps: FPS,
+    note_speed: f64
 }
 
 impl GuiWasabiWindow {
@@ -90,13 +91,13 @@ impl GuiWasabiWindow {
             keyboard: GuiKeyboard::new(),
             midi_file,
             fps: FPS::new(),
+            note_speed: 0.50
         }
     }
 
     /// Defines the layout of our UI
     pub fn layout(&mut self, state: &mut GuiState) {
         let ctx = state.gui.context();
-        let mut note_speed = 0.50;
 
         let window_size = vec![ctx.available_rect().width(), ctx.available_rect().height()];
 
@@ -146,9 +147,8 @@ impl GuiWasabiWindow {
                         // TODO
                     }
 
-                    let slider2 = egui::Slider::new(&mut note_speed, 0.01..=4.0).text("Note speed");
+                    let slider2 = egui::Slider::new(&mut self.note_speed, 0.01..=4.0).text("Note speed");
                     ui.add(slider2);
-                    println!("{}",note_speed);
                 });
 
                 if let Some(length) = self.midi_file.midi_length() {
@@ -183,63 +183,61 @@ impl GuiWasabiWindow {
 
         let stats = self.midi_file.stats();
 
+        let mut polyphony: usize = 0;
+
         // Render the notes
         egui::TopBottomPanel::top("Note panel")
             .height_range(notes_height..=notes_height)
             .frame(no_frame)
             .show(&ctx, |mut ui| {
-                let result =
-                    self.render_scene.draw(state, &mut ui, &key_view, &mut self.midi_file, &mut note_speed);
-                render_result_data = Some(result);
+                let result = self.render_scene.draw(state, &mut ui, &key_view, &mut self.midi_file, &mut self.note_speed);
+
+                // Render the stats
+                let stats_frame = Frame::default()
+                    .margin(egui::style::Margin::same(10.0))
+                    .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 170))
+                    .rounding(egui::Rounding::same(5.0));
+
+                egui::Window::new("Stats")
+                    .resizable(false)
+                    .collapsible(false)
+                    .title_bar(false)
+                    .scroll2([false, false])
+                    .enabled(true)
+                    .frame(stats_frame)
+                    //.fixed_pos(egui::Pos2::new(10.0, panel_height + 38.0))
+                    .show(&ctx, |ui| {
+                        if let Some(length) = self.midi_file.midi_length() {
+                            let time = self.midi_file.timer().get_time().as_secs();
+                            let time_sec = time % 60;
+                            let time_min = (time / 60) % 60;
+                            let length_u64 = length as u64;
+                            let length_sec = length_u64 % 60;
+                            let length_min = (length_u64 / 60) % 60;
+                            if time > length_u64 {
+                                ui.add(Label::new(format!("Time: {:0width$}:{:0width$}/{:0width$}:{:0width$}", length_min, length_sec, length_min, length_sec, width = 2)));
+                            } else {
+                                ui.add(Label::new(format!("Time: {:0width$}:{:0width$}/{:0width$}:{:0width$}", time_min, time_sec, length_min, length_sec, width = 2)));
+                            }
+                        }
+                        ui.add(Label::new(format!("FPS: {}", self.fps.get_fps().round())));
+                        ui.add(Label::new(format!("Total Notes: {}", stats.total_notes)));
+                        ui.add(Label::new(format!("Passed: {}", -1)));  // TODO
+                        ui.add(Label::new(format!("Polyphony: {}", polyphony)));
+                        ui.add(Label::new(format!("Rendered: {}", result.notes_rendered)));
+                        render_result_data = Some(result);
+                    });
             });
 
         let render_result_data = render_result_data.unwrap();
-
-        let mut polyphony: usize = 0;
 
         // Render the keyboard
         egui::TopBottomPanel::top("Keyboard panel")
             .height_range(keyboard_height..=keyboard_height)
             .frame(no_frame)
             .show(&ctx, |ui| {
-                let pressed = self.keyboard
-                    .draw(ui, &key_view, &render_result_data.key_colors);
+                let pressed = self.keyboard.draw(ui, &key_view, &render_result_data.key_colors);
                 polyphony += pressed;
-            });
-
-        // Render the stats
-        let stats_frame = Frame::default()
-            .margin(egui::style::Margin::same(10.0))
-            .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 170))
-            .rounding(egui::Rounding::same(5.0));
-
-        egui::Window::new("Stats")
-            .resizable(false)
-            .collapsible(false)
-            .title_bar(false)
-            .scroll2([false, false])
-            .enabled(true)
-            .frame(stats_frame)
-            .fixed_pos(egui::Pos2::new(10.0, panel_height + 45.0))
-            .show(&ctx, |ui| {
-                if let Some(length) = self.midi_file.midi_length() {
-                    let time = self.midi_file.timer().get_time().as_secs();
-                    let time_sec = time % 60;
-                    let time_min = (time / 60) % 60;
-                    let length_u64 = length as u64;
-                    let length_sec = length_u64 % 60;
-                    let length_min = (length_u64 / 60) % 60;
-                    if time > length_u64 {
-                        ui.add(Label::new(format!("Time: {:0width$}:{:0width$}/{:0width$}:{:0width$}", length_min, length_sec, length_min, length_sec, width = 2)));
-                    } else {
-                        ui.add(Label::new(format!("Time: {:0width$}:{:0width$}/{:0width$}:{:0width$}", time_min, time_sec, length_min, length_sec, width = 2)));
-                    }
-                }
-                ui.add(Label::new(format!("FPS: {}", self.fps.get_fps().round())));
-                ui.add(Label::new(format!("Total Notes: {}", stats.total_notes)));
-                ui.add(Label::new(format!("Passed: {}", -1)));  // TODO
-                ui.add(Label::new(format!("Polyphony: {}", polyphony)));
-                ui.add(Label::new(format!("Rendered: {}", render_result_data.notes_rendered)));
             });
     }
 }

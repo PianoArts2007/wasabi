@@ -21,8 +21,9 @@ impl MIDIFileStats {
         }
     }
 
-    pub fn add_notes(&mut self, count: usize) {
-        self.passed_notes += count
+    pub fn add_notes(&mut self, count: usize) -> usize {
+        self.passed_notes += count;
+        return self.passed_notes;
     }
 }
 

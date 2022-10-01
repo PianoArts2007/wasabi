@@ -2,18 +2,11 @@ mod keyboard;
 mod keyboard_layout;
 mod scene;
 
-use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
-    env,
-};
+use std::{collections::VecDeque,time::{Duration, Instant},env,};
 
-use egui::{style::Margin, Frame, Label, Visuals};
+use egui::{style::Margin, Frame, Label, Visuals, Ui};
 
-use crate::{
-    audio_playback::SimpleTemporaryPlayer,
-    midi::{InRamMIDIFile, MIDIFileBase, MIDIFileUnion},
-};
+use crate::{audio_playback::SimpleTemporaryPlayer,midi::{InRamMIDIFile, MIDIFileBase, MIDIFileUnion},};
 
 use self::{keyboard::GuiKeyboard, scene::GuiRenderScene};
 
@@ -60,7 +53,16 @@ pub struct GuiWasabiWindow {
     keyboard: GuiKeyboard,
     midi_file: MIDIFileUnion,
     fps: FPS,
-    note_speed: f64
+    notes: usize,
+    note_speed: f64,
+    //keyboard_height: f32,
+    polyphony: usize,
+    first_key: usize,
+    last_key: usize,
+    background_color: egui::Color32,
+    //bar_color: egui::Color32,
+    is_show_setting: bool,
+    is_full_screen: bool,
 }
 
 impl GuiWasabiWindow {
@@ -91,14 +93,23 @@ impl GuiWasabiWindow {
             keyboard: GuiKeyboard::new(),
             midi_file,
             fps: FPS::new(),
-            note_speed: 0.50
+            notes: 0,
+            note_speed: 0.50,
+            //keyboard_height: 70.0 / 760.0,
+            polyphony: 0,
+            first_key: 0,
+            last_key: 127,
+            background_color: egui::Color32::from_rgb(0, 0, 0),
+            //bar_color: egui::Color32::from_rgb(127, 0, 0),
+            is_show_setting: false,
+            is_full_screen: false,
         }
     }
 
     /// Defines the layout of our UI
     pub fn layout(&mut self, state: &mut GuiState) {
         let ctx = state.gui.context();
-
+        let stats = self.midi_file.stats();
         let window_size = vec![ctx.available_rect().width(), ctx.available_rect().height()];
 
         self.fps.update();
@@ -126,6 +137,7 @@ impl GuiWasabiWindow {
                                 egui::Key::ArrowRight => self.midi_file.timer_mut().seek(time + one_sec),
                                 egui::Key::ArrowLeft => self.midi_file.timer_mut().seek(time - one_sec),
                                 egui::Key::Space => self.midi_file.timer_mut().toggle_pause(),
+                                egui::Key::F => self.is_full_screen = !self.is_full_screen,
                                 _ => {},
                             }
                         },
@@ -134,8 +146,28 @@ impl GuiWasabiWindow {
                 }
 
                 ui.horizontal(|ui| {
-                    if ui.button("Open MIDI (N/A)").clicked() {
-                        // TODO
+                    if ui.button("Open MIDI").clicked() {
+                        self.midi_file.timer_mut().pause();
+                        
+                        let path = FileDialog::new()
+                        .set_location("~/")
+                        .add_filter("MIDI File", &["mid","MID"])
+                        .show_open_single_file()
+                        .unwrap();
+                        
+                        let path = match path {
+                            Some(path) => path,
+                            None => {
+                                panic!("File Not Found or Cancelled");
+                            },
+                        };
+                
+                        self.midi_file = MIDIFileUnion::InRam(InRamMIDIFile::load_from_file(
+                            &path.into_os_string().into_string().unwrap(),
+                            SimpleTemporaryPlayer::new(),
+                        ));
+                
+                        self.midi_file.timer_mut().play();
                     }
                     if ui.button("Play").clicked() {
                         self.midi_file.timer_mut().play();
@@ -143,12 +175,9 @@ impl GuiWasabiWindow {
                     if ui.button("Pause").clicked() {
                         self.midi_file.timer_mut().pause();
                     }
-                    if ui.button("Settings (N/A)").clicked() {
-                        // TODO
+                    if ui.button("Settings").clicked() {
+                        self.is_show_setting = !self.is_show_setting;
                     }
-
-                    let slider2 = egui::Slider::new(&mut self.note_speed, 0.01..=4.0).text("Note speed");
-                    ui.add(slider2);
                 });
 
                 if let Some(length) = self.midi_file.midi_length() {
@@ -173,17 +202,15 @@ impl GuiWasabiWindow {
         let keyboard_height = 70.0 / 760.0 * available.width() as f32;
         let notes_height = height - keyboard_height;
 
-        let key_view = self.keyboard_layout.get_view_for_keys(0, 127);
+        let key_view = self.keyboard_layout.get_view_for_keys(self.first_key, self.last_key);
 
         let no_frame = Frame::default()
             .margin(Margin::same(0.0))
-            .fill(egui::Color32::from_rgb(90, 90, 90));
+            .fill(self.background_color);
+        
+        
 
         let mut render_result_data = None;
-
-        let stats = self.midi_file.stats();
-
-        let mut polyphony: usize = 0;
 
         // Render the notes
         egui::TopBottomPanel::top("Note panel")
@@ -222,11 +249,41 @@ impl GuiWasabiWindow {
                         }
                         ui.add(Label::new(format!("FPS: {}", self.fps.get_fps().round())));
                         ui.add(Label::new(format!("Total Notes: {}", stats.total_notes)));
-                        ui.add(Label::new(format!("Passed: {}", -1)));  // TODO
-                        ui.add(Label::new(format!("Polyphony: {}", polyphony)));
+                        ui.add(Label::new(format!("Passed Notes: {}", self.notes)));  // TODO
+                        ui.add(Label::new(format!("Polyphony: {}", self.polyphony)));  // TODO
+                        ui.add(Label::new(format!("NPS: {}", self.polyphony)));  // TODO
                         ui.add(Label::new(format!("Rendered: {}", result.notes_rendered)));
                         render_result_data = Some(result);
                     });
+
+                    if self.is_show_setting {
+                        egui::Window::new("Settings")
+                        .resizable(true)
+                        .collapsible(true)
+                        .title_bar(true)
+                        .scroll2([false, false])
+                        .enabled(true)
+                        .frame(stats_frame)
+                        .show(&ctx, |ui| {
+                            ui.label("wasabi - Arduano > MBMS > Ced Mod");
+                            let slider2 = egui::Slider::new(&mut self.note_speed, 0.01..=4.0).text("Note Speed");
+                            ui.add(slider2);
+        
+                            let slider3 = egui::Slider::new(&mut self.first_key, 0..=63).text("First Key");
+                            ui.add(slider3);
+        
+                            let slider4 = egui::Slider::new(&mut self.last_key, 64..=255).text("Last Key");
+                            ui.add(slider4);
+
+                            ui.label("Background color");
+                            egui::color_picker::color_picker_color32(ui, &mut self.background_color, egui::color_picker::Alpha::OnlyBlend);
+
+                            //ui.label("Bar color");
+                            //egui::color_picker::color_picker_color32(ui, &mut self.bar_color, egui::color_picker::Alpha::OnlyBlend);
+                            //let slider5 = egui::Slider::new(&mut self.keyboard_height, 40.0..=90.0).text("Keyboard Height");
+                            //ui.add(slider5);
+                        });
+                    }
             });
 
         let render_result_data = render_result_data.unwrap();
@@ -237,7 +294,8 @@ impl GuiWasabiWindow {
             .frame(no_frame)
             .show(&ctx, |ui| {
                 let pressed = self.keyboard.draw(ui, &key_view, &render_result_data.key_colors);
-                polyphony += pressed;
+                self.polyphony = 0;
+                //self.notes = pressed;      disabeld due to an error...
             });
     }
 }

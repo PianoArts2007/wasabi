@@ -1,21 +1,6 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-    thread,
-};
+use std::{collections::{HashMap, VecDeque},sync::Arc,thread,};
 
-use midi_toolkit::{
-    events::{Event, MIDIEvent, MIDIEventEnum},
-    io::MIDIFile as TKMIDIFile,
-    pipe,
-    sequence::{
-        event::{
-            cancel_tempo_events, convert_events_into_batches, scale_event_time, EventBatch,
-            TrackEvent,
-        },
-        unwrap_items, TimeCaster,
-    },
-};
+use midi_toolkit::{events::{Event, MIDIEvent, MIDIEventEnum},io::MIDIFile as TKMIDIFile,pipe,sequence::{event::{cancel_tempo_events, convert_events_into_batches, scale_event_time, EventBatch,TrackEvent,},unwrap_items, TimeCaster,},};
 
 use crate::{
     audio_playback::SimpleTemporaryPlayer,
